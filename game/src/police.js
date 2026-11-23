@@ -1,12 +1,19 @@
 // Wanted level and the Solmar PD. Heat (0..5) maps to 0..5 stars.
 // Police cars spawn off-screen and chase; at 2+ stars foot officers
-// join and try to arrest Rico on foot. Heat decays when no officer can
+// join and try to arrest Rico on foot, and the HAWK-1 helicopter
+// circles overhead with a spotlight. Heat decays when no officer can
 // see him; getting busted costs cash and clears the heat.
+//
+// Every police unit carries a callsign the HUD's dispatch panel shows
+// with its live distance and status: PATROL cars, INTERCEPTORs, the
+// HAWK-1 air unit, and ROADBLOCK when a unit holds the road ahead.
 import { WANTED_THRESHOLDS, HEAT_DECAY_PER_SECOND } from './config.js';
 import { makeCar, playerCar } from './vehicles.js';
 import { nearestRoadPoint, resolveCityCollision } from './city.js';
 import { damagePlayer } from './player.js';
 import { setSiren } from './audio.js';
+
+const UNIT_NAMES = ['PATROL-07', 'PATROL-19', 'PATROL-23', 'INTERCEPTOR-04', 'INTERCEPTOR-11', 'PATROL-31'];
 
 export function wantedStars(game) {
   let stars = 0;
@@ -25,6 +32,7 @@ function spawnPoliceCar(game) {
   const car = makeCar(game, 'police', point.x, point.y, game.rng() * Math.PI * 2, 'police');
   car.speed = 200;
   car.siren = true;
+  car.unitName = UNIT_NAMES[game.cars.filter((c) => c.driver === 'police').length % UNIT_NAMES.length];
   game.cars.push(car);
   return car;
 }
@@ -40,7 +48,36 @@ function spawnFootCop(game) {
     radius: 13,
     arrestTimer: 0,
     color: '#20242c',
+    unitName: 'OFFICER-' + (10 + game.cops.length),
   });
+}
+
+// The dispatch feed for the HUD: every active unit with its live
+// distance and a status tag derived from where it is relative to Rico.
+export function dispatchUnits(game) {
+  const player = game.player;
+  const units = [];
+  for (const car of game.cars) {
+    if (car.driver !== 'police') continue;
+    const d = Math.hypot(player.x - car.x, player.y - car.y);
+    const closing = Math.hypot(player.x - (car.x + Math.cos(car.angle) * 40), player.y - (car.y + Math.sin(car.angle) * 40)) < d;
+    const ahead = (player.x - car.x) * Math.cos(player.angle) + (player.y - car.y) * Math.sin(player.angle) > 0;
+    const side = Math.abs((player.x - car.x) * -Math.sin(player.angle) + (player.y - car.y) * Math.cos(player.angle));
+    let status = 'PURSUIT';
+    if (d < 70 && closing) status = 'RAMMING';
+    else if (side > 120) status = 'FLANKING';
+    else if (ahead && d < 260 && wantedStars(game) >= 3) status = 'ROADBLOCK';
+    units.push({ name: car.unitName || 'PATROL', status, dist: Math.round(d), id: car.id, kind: 'car' });
+  }
+  for (const cop of game.cops) {
+    const d = Math.hypot(player.x - cop.x, player.y - cop.y);
+    units.push({ name: cop.unitName || 'OFFICER', status: d < 40 ? 'CLOSING IN' : 'ON FOOT', dist: Math.round(d), id: null, kind: 'cop' });
+  }
+  if (game.heli && game.heli.active) {
+    units.push({ name: 'HAWK-1', status: 'SPOTLIGHT', dist: Math.round(Math.hypot(player.x - game.heli.x, player.y - game.heli.y)), id: null, kind: 'heli' });
+  }
+  units.sort((a, b) => a.dist - b.dist);
+  return units;
 }
 
 export function updatePolice(game, dt) {
@@ -68,11 +105,34 @@ export function updatePolice(game, dt) {
     }
     game.cops.length = 0;
   }
-  // Chase: police cars steer at the player and ram.
+  // HAWK-1 circles overhead from 2 stars up: ahead of Rico and off to
+  // the side, low enough that the spotlight cone reads in the frame.
+  if (stars >= 2) {
+    const fx = Math.cos(game.player.angle);
+    const fy = Math.sin(game.player.angle);
+    const lx = -fy;
+    const ly = fx;
+    game.heli.active = true;
+    game.heli.x = game.player.x + fx * 180 + lx * 40;
+    game.heli.y = game.player.y + fy * 180 + ly * 40;
+    game.heli.z = 170;
+  } else {
+    game.heli.active = false;
+  }
+  // Chase: police cars steer at the player and ram. Staged cars (the
+  // screenshot scenes) drive straight at their set speed instead, so
+  // the frame the shot takes is the frame that was staged.
   const player = game.player;
   let anyNear = false;
   for (const car of game.cars) {
     if (car.driver !== 'police') continue;
+    if (car.staged) {
+      car.x += Math.cos(car.angle) * car.speed * dt;
+      car.y += Math.sin(car.angle) * car.speed * dt;
+      const sd = Math.hypot(player.x - car.x, player.y - car.y);
+      if (sd < 620) anyNear = true;
+      continue;
+    }
     const desired = Math.atan2(player.y - car.y, player.x - car.x);
     let diff = desired - car.angle;
     while (diff > Math.PI) diff -= Math.PI * 2;
@@ -162,29 +222,4 @@ export function bustPlayer(game) {
   player.health = Math.max(player.health, 50);
   game.screen = 'busted';
   game.stats.busted += 1;
-}
-
-export function drawCops(ctx, game) {
-  for (const cop of game.cops) {
-    ctx.fillStyle = 'rgba(0,0,0,0.25)';
-    ctx.beginPath();
-    ctx.ellipse(cop.x + 2, cop.y + 4, 11, 6, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = '#20242c';
-    ctx.beginPath();
-    ctx.arc(cop.x, cop.y, 12, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = '#2f6fd2';
-    ctx.beginPath();
-    ctx.arc(cop.x, cop.y, 6, 0, Math.PI * 2);
-    ctx.fill();
-    // Arrest progress ring.
-    if (cop.arrestTimer > 0.1) {
-      ctx.strokeStyle = '#ffd21f';
-      ctx.lineWidth = 3;
-      ctx.beginPath();
-      ctx.arc(cop.x, cop.y, 18, -Math.PI / 2, -Math.PI / 2 + (cop.arrestTimer / 1.4) * Math.PI * 2);
-      ctx.stroke();
-    }
-  }
 }

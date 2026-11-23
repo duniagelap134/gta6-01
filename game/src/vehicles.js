@@ -1,6 +1,9 @@
 // Cars: types, spawning, driving physics, entering / exiting and
 // stealing. A car is a rotated rectangle with speed; traffic and police
-// cars reuse the same shape with a different driver tag.
+// cars reuse the same shape with a different driver tag. Cars now
+// carry a condition (100 = showroom, lower after hard hits) that the
+// HUD shows and Milo's Quick Fix restores; a battered car loses a
+// little top speed. Drawing moved to render3d.js.
 import { WORLD_W, WORLD_H, CAR_ENTER_RADIUS, HEAT_STEAL_CAR } from './config.js';
 import { isDown, wasPressed } from './input.js';
 import { resolveCityCollision, onRoad, nearestRoadPoint } from './city.js';
@@ -33,6 +36,7 @@ export function makeCar(game, typeName, x, y, angle, driver) {
     topSpeed: type.topSpeed,
     accel: type.accel,
     grip: type.grip,
+    condition: 100, // wear from hard hits; Quick Fix (X) restores it
     target: null, // traffic waypoint {x,y}
     wait: 0,
     siren: false,
@@ -127,6 +131,10 @@ function spawnFleeingDriver(game, car) {
   game.peds.push(ped);
 }
 
+function damageCondition(car, amount) {
+  car.condition = Math.max(25, car.condition - amount);
+}
+
 function collideCarsWithCity(game, car, dt) {
   const hit = resolveCityCollision(game.city, car, car.length / 2 - 4);
   if (!hit) return;
@@ -138,6 +146,7 @@ function collideCarsWithCity(game, car, dt) {
   if (Math.abs(car.speed) > 120) {
     playCrash(game.audio);
     game.addShake(Math.min(7, Math.abs(car.speed) / 60));
+    damageCondition(car, 2);
     for (let i = 0; i < 8; i += 1) {
       game.particles.push({
         x: car.x, y: car.y, vx: (game.rng() - 0.5) * 160, vy: (game.rng() - 0.5) * 160,
@@ -167,7 +176,10 @@ export function updatePlayerDriving(game, dt) {
   }
   if (!forward && !brake) car.speed -= Math.sign(car.speed) * 60 * dt;
   if (handbrake) car.speed *= Math.max(0, 1 - 3.2 * dt);
-  car.speed = Math.max(-car.topSpeed * 0.4, Math.min(car.topSpeed, car.speed));
+  // A battered car loses top end: 100% condition is full speed, 25%
+  // condition caps at about 78%.
+  const topSpeed = car.topSpeed * (0.7 + 0.3 * (car.condition / 100));
+  car.speed = Math.max(-topSpeed * 0.4, Math.min(topSpeed, car.speed));
   if (Math.abs(car.speed) < 4 && !forward && !brake) car.speed = 0;
   const steerAmount = steer * car.grip * dt * Math.min(1, Math.abs(car.speed) / 120 + 0.25) * (car.speed < 0 ? -1 : 1);
   car.angle += steerAmount * (handbrake ? 1.5 : 1);
@@ -195,7 +207,10 @@ export function updatePlayerDriving(game, dt) {
       car.x -= nx * push;
       car.y -= ny * push;
       if (car.bumpTimer <= 0) {
-        if (Math.abs(car.speed) > 150) playCrash(game.audio);
+        if (Math.abs(car.speed) > 150) {
+          playCrash(game.audio);
+          damageCondition(car, 1.5);
+        }
         car.speed *= 0.85;
         other.speed *= 0.7;
         car.bumpTimer = 0.3;
@@ -205,68 +220,6 @@ export function updatePlayerDriving(game, dt) {
   player.x = car.x;
   player.y = car.y;
   player.angle = car.angle;
-}
-
-export function drawCar(ctx, car, night) {
-  ctx.save();
-  ctx.translate(car.x, car.y);
-  ctx.rotate(car.angle);
-  const l = car.length;
-  const w = car.width;
-  // Shadow.
-  ctx.fillStyle = 'rgba(0,0,0,0.28)';
-  ctx.beginPath();
-  ctx.ellipse(3, 5, l / 2, w / 2 + 2, 0, 0, Math.PI * 2);
-  ctx.fill();
-  // Body.
-  ctx.fillStyle = night ? shadeColor(car.color, -25) : car.color;
-  roundRect(ctx, -l / 2, -w / 2, l, w, 7);
-  ctx.fill();
-  ctx.strokeStyle = 'rgba(0,0,0,0.35)';
-  ctx.lineWidth = 1;
-  ctx.stroke();
-  // Roof + windshield.
-  ctx.fillStyle = 'rgba(20,24,32,0.85)';
-  roundRect(ctx, -l * 0.18, -w / 2 + 3, l * 0.36, w - 6, 4);
-  ctx.fill();
-  ctx.fillStyle = 'rgba(140,190,220,0.7)';
-  ctx.fillRect(l * 0.22, -w / 2 + 4, 5, w - 8);
-  // Police livery + light bar.
-  if (car.type === 'police') {
-    ctx.fillStyle = '#e8e4d2';
-    ctx.fillRect(-l * 0.32, -w / 2, l * 0.16, w);
-    ctx.fillStyle = '#d21f3c';
-    ctx.fillRect(-6, -w / 2 + 2, 5, 7);
-    ctx.fillStyle = '#1f6fd2';
-    ctx.fillRect(-6, w / 2 - 9, 5, 7);
-    if (car.siren) {
-      const t = Date.now() / 260;
-      ctx.fillStyle = Math.floor(t) % 2 === 0 ? 'rgba(255,40,60,0.9)' : 'rgba(40,110,255,0.9)';
-      ctx.beginPath();
-      ctx.arc(l / 2 + 4, 0, 16, 0, Math.PI * 2);
-      ctx.fill();
-    }
-  }
-  // Headlights at night, brake lights when braking.
-  if (night) {
-    ctx.fillStyle = 'rgba(255,240,180,0.95)';
-    ctx.fillRect(l / 2 - 2, -w / 2 + 2, 4, 5);
-    ctx.fillRect(l / 2 - 2, w / 2 - 7, 4, 5);
-  }
-  if (car.brakeLight) {
-    ctx.fillStyle = '#ff2a22';
-    ctx.fillRect(-l / 2 - 1, -w / 2 + 2, 4, 5);
-    ctx.fillRect(-l / 2 - 1, w / 2 - 7, 4, 5);
-  }
-  // Mission marker ring on the target car.
-  if (car.marker) {
-    ctx.strokeStyle = '#ffd21f';
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.arc(0, 0, l / 2 + 12, 0, Math.PI * 2);
-    ctx.stroke();
-  }
-  ctx.restore();
 }
 
 export function shadeColor(hex, amount) {

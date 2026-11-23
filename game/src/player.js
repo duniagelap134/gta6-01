@@ -1,9 +1,14 @@
 // Rico Vale on foot: WASD movement, sprint, aim with the mouse, punch
 // with Space, shoot with click. The player is a circle with a facing
 // angle; the camera and the HUD read the same fields.
+//
+// Aiming in v2: the mouse points at the ground plane under the cursor
+// (screenToGround in render3d.js), so Rico aims where the player looks
+// in the 3D view. Drawing moved to render3d.js.
 import { PLAYER_WALK_SPEED, PLAYER_SPRINT_SPEED, PLAYER_HEALTH_MAX } from './config.js';
 import { isDown } from './input.js';
 import { resolveCityCollision } from './city.js';
+import { screenToGround } from './render3d.js';
 
 export function createPlayer(x, y) {
   return {
@@ -67,10 +72,9 @@ export function updatePlayerOnFoot(game, dt) {
     player.x += (mx / len) * speed * dt;
     player.y += (my / len) * speed * dt;
   }
-  // Aim at the mouse (world coordinates through the camera).
-  const wx = game.camera.x + input.mouse.x / game.camera.zoom;
-  const wy = game.camera.y + input.mouse.y / game.camera.zoom;
-  player.angle = Math.atan2(wy - player.y, wx - player.x);
+  // Aim at the ground under the mouse cursor in the 3D view.
+  const aim = screenToGround(game, input.mouse.x, input.mouse.y);
+  player.angle = Math.atan2(aim.y - player.y, aim.x - player.x);
   if (resolveCityCollision(game.city, player, player.radius)) {
     // bumped into a wall; nothing else to do
   }
@@ -86,35 +90,6 @@ export function updatePlayerOnFoot(game, dt) {
     }
   }
   if (player.hurtFlash > 0) player.hurtFlash -= dt;
-}
-
-export function drawPlayer(ctx, game) {
-  const player = game.player;
-  if (!player.onFoot || player.dead) return;
-  const night = game.night;
-  // Shadow.
-  ctx.fillStyle = 'rgba(0,0,0,0.25)';
-  ctx.beginPath();
-  ctx.ellipse(player.x + 3, player.y + 5, 13, 7, 0, 0, Math.PI * 2);
-  ctx.fill();
-  // Body: teal jacket, dark jeans — Rico's look.
-  ctx.fillStyle = night ? '#1e6f6a' : '#2aa198';
-  ctx.beginPath();
-  ctx.arc(player.x, player.y, 13, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = '#22242a';
-  ctx.beginPath();
-  ctx.arc(player.x, player.y, 7, 0, Math.PI * 2);
-  ctx.fill();
-  // Facing nose + gun when aiming.
-  const nx = player.x + Math.cos(player.angle) * 13;
-  const ny = player.y + Math.sin(player.angle) * 13;
-  ctx.strokeStyle = '#1c1c1c';
-  ctx.lineWidth = 4;
-  ctx.beginPath();
-  ctx.moveTo(player.x + Math.cos(player.angle) * 8, player.y + Math.sin(player.angle) * 8);
-  ctx.lineTo(nx + Math.cos(player.angle) * 8, ny + Math.sin(player.angle) * 8);
-  ctx.stroke();
   // Sprint dust.
   if (player.moving && player.sprinting && Math.random() < 0.3) {
     game.particles.push({

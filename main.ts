@@ -1,4 +1,4 @@
-// SOLMAR — a gta6-01 entry (Node 22, standard library only).
+// SOLMAR v2 — a gta6-01 entry (Node 22, standard library only).
 // The game lives in game/ as plain static files a desktop browser loads
 // offline (game/index.html and its ES modules, no library, no network
 // request). This program hands it in: it copies game/ and screenshots/

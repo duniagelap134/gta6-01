@@ -115,6 +115,18 @@ export function playBusted(audio) {
   blip(audio, 330, 0.5, 'sawtooth', 0.15, 110);
 }
 
+// A short car horn (H) and a two-note jingle when the radio station
+// changes — both small, both wired in main.js.
+export function playHorn(audio) {
+  blip(audio, 370, 0.16, 'square', 0.14);
+  setTimeout(() => blip(audio, 466, 0.14, 'square', 0.12), 70);
+}
+
+export function playStationJingle(audio) {
+  blip(audio, 880, 0.09, 'sine', 0.1);
+  setTimeout(() => blip(audio, 1174, 0.12, 'sine', 0.1), 100);
+}
+
 // Continuous engine hum whose pitch follows speed (0..1).
 export function setEngine(audio, speed01, driving) {
   if (audio.muted || !driving) {

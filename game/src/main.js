@@ -1,18 +1,21 @@
-// SOLMAR — boot, game state, main loop, camera, rendering order.
+// SOLMAR v2 — boot, game state, main loop, chase camera, rendering.
 // The world is one shared object `game`; every system module reads and
 // writes it, and main.js is the only place that decides the order.
-import { WORLD_W, WORLD_H, V_ROADS, H_ROADS, SHOT_SEED } from './config.js';
+// The view is now a 3D chase camera (render3d.js); the simulation
+// underneath — city, traffic, police, combat, missions — is v1's.
+import { WORLD_W, WORLD_H, V_ROADS, H_ROADS, SHOT_SEED, CREW, RADIO } from './config.js';
 import { mulberry32 } from './rng.js';
-import { buildCity, drawCity } from './city.js';
+import { buildCity } from './city.js';
 import { createInput, wasPressed, beginFrameInput } from './input.js';
-import { createAudio, unlockAudio, setMuted, setEngine, startMusic } from './audio.js';
-import { createPlayer, updatePlayerOnFoot, drawPlayer as drawPlayerOnFoot } from './player.js';
-import { spawnParkedCars, updatePlayerDriving, playerCar, tryEnterOrExitCar, drawCar } from './vehicles.js';
-import { spawnTraffic, updateTraffic, checkPedCarHits, drawPedestrians } from './traffic.js';
-import { updatePolice, drawCops } from './police.js';
-import { updateCombat, drawEnemies, drawBulletsAndPickups } from './combat.js';
-import { updateMissions, checkMissionStart, drawMissionMarkers } from './missions.js';
+import { createAudio, unlockAudio, setMuted, setEngine, startMusic, playHorn, playStationJingle } from './audio.js';
+import { createPlayer, updatePlayerOnFoot } from './player.js';
+import { spawnParkedCars, updatePlayerDriving, playerCar, tryEnterOrExitCar } from './vehicles.js';
+import { spawnTraffic, updateTraffic, checkPedCarHits } from './traffic.js';
+import { updatePolice, dispatchUnits } from './police.js';
+import { updateCombat } from './combat.js';
+import { updateMissions, checkMissionStart, missionStartMarker, MISSIONS } from './missions.js';
 import { drawHUD, drawTitleScreen, drawOverlay } from './hud.js';
+import { renderWorld, updateChaseCamera } from './render3d.js';
 import { saveGame, loadSave } from './save.js';
 import { stageShot } from './shots.js';
 
@@ -37,7 +40,7 @@ export function newGame(seed) {
     time: 0,
     dayTime: 0.35, // 0..1; 0.35 is late morning sun
     night: false,
-    camera: { x: 0, y: 0, w: 1280, h: 800, zoom: 1, shake: 0 },
+    camera: { x: 700, y: 500, z: 52, yaw: -Math.PI / 2, pitch: 0.26, shake: 0, snap: true },
     viewW: 1280,
     viewH: 800,
     player: createPlayer(700, 500),
@@ -58,6 +61,10 @@ export function newGame(seed) {
     missionsDone: 0,
     storyComplete: false,
     messages: [],
+    dialogue: null,
+    startMarker: null,
+    heli: { active: false, x: 0, y: 0, z: 190 },
+    crew: { plates: 0, fix: 0, eyes: 0, trackedId: null, trackedUntil: 0 },
     stats: { carsStolen: 0, kills: 0, pedsHit: 0, deaths: 0, busted: 0, missionsDone: 0 },
     showHelp: false,
     uiButtons: [],
@@ -84,6 +91,46 @@ function resetWorld(game, seed) {
   game.audio = fresh.audio;
 }
 
+// Crew abilities (Z / X / C), each with a real effect and a cooldown.
+function updateCrew(game, dt) {
+  const crew = game.crew;
+  if (crew.plates > 0) crew.plates -= dt;
+  if (crew.fix > 0) crew.fix -= dt;
+  if (crew.eyes > 0) crew.eyes -= dt;
+  if (crew.trackedId && game.time > crew.trackedUntil) crew.trackedId = null;
+  const input = game.input;
+  if (wasPressed(input, 'KeyZ') && crew.plates <= 0) {
+    if (game.heat > 0) {
+      game.heat = Math.max(0, game.heat - 1.0);
+      crew.plates = CREW.plates.cooldown;
+      game.addMessage('Dana swapped the plates — heat down a star.');
+    } else {
+      game.addMessage('No heat to lose — plates are already clean.');
+    }
+  }
+  if (wasPressed(input, 'KeyX') && crew.fix <= 0) {
+    const car = playerCar(game);
+    if (car) {
+      car.condition = 100;
+      crew.fix = CREW.fix.cooldown;
+      game.addMessage('Milo patched the ride — condition 100%.');
+    } else {
+      game.addMessage('Quick Fix needs a car — get in one first.');
+    }
+  }
+  if (wasPressed(input, 'KeyC') && crew.eyes <= 0) {
+    const units = dispatchUnits(game).filter((u) => u.kind === 'car');
+    if (units.length > 0) {
+      crew.trackedId = units[0].id;
+      crew.trackedUntil = game.time + 10;
+      crew.eyes = CREW.eyes.cooldown;
+      game.addMessage(`Nia has eyes on ${units[0].name} — ${units[0].dist} m, ${units[0].status}.`);
+    } else {
+      game.addMessage('Nia sees nothing — no units on you.');
+    }
+  }
+}
+
 export function updateWorld(game, dt) {
   game.time += dt;
   game.dayTime = (game.dayTime + dt * 0.0008) % 1;
@@ -95,6 +142,14 @@ export function updateWorld(game, dt) {
     setMuted(game.audio, !game.audio.muted);
     game.addMessage(game.audio.muted ? 'Sound muted (M to unmute)' : 'Sound on');
   }
+  if (wasPressed(input, 'KeyH')) playHorn(game.audio);
+  // Radio station jingle when the ticker rolls to a new station.
+  const radioIndex = Math.floor(game.time / 30) % RADIO.length;
+  if (game.radioIndex === undefined) game.radioIndex = radioIndex;
+  else if (radioIndex !== game.radioIndex) {
+    game.radioIndex = radioIndex;
+    playStationJingle(game.audio);
+  }
   if (wasPressed(input, 'KeyP', 'Escape')) {
     game.screen = 'pause';
     return;
@@ -103,6 +158,7 @@ export function updateWorld(game, dt) {
     const result = tryEnterOrExitCar(game);
     if (result === 'enter') game.addMessage(`Driving a ${playerCar(game).name}. W to go, S to brake.`);
   }
+  updateCrew(game, dt);
   // Player.
   if (game.player.onFoot) updatePlayerOnFoot(game, dt);
   else updatePlayerDriving(game, dt);
@@ -113,6 +169,7 @@ export function updateWorld(game, dt) {
   updateCombat(game, dt);
   updateMissions(game, dt);
   checkMissionStart(game);
+  game.startMarker = missionStartMarker(game);
   // Particles.
   for (let i = game.particles.length - 1; i >= 0; i -= 1) {
     const p = game.particles[i];
@@ -126,17 +183,9 @@ export function updateWorld(game, dt) {
     game.messages[i].t -= dt;
     if (game.messages[i].t <= 0) game.messages.splice(i, 1);
   }
-  // Camera follows the player (or their car), clamped to the city.
-  const cam = game.camera;
-  const zoom = game.player.onFoot ? 1 : 0.92;
-  cam.zoom = zoom;
-  cam.w = game.viewW / zoom;
-  cam.h = game.viewH / zoom;
-  const targetX = Math.max(0, Math.min(WORLD_W - cam.w, game.player.x - cam.w / 2));
-  const targetY = Math.max(0, Math.min(WORLD_H - cam.h, game.player.y - cam.h / 2));
-  cam.x += (targetX - cam.x) * Math.min(1, dt * 5);
-  cam.y += (targetY - cam.y) * Math.min(1, dt * 5);
-  if (cam.shake > 0) cam.shake = Math.max(0, cam.shake - dt * 26);
+  // Chase camera follows the player (or their car).
+  updateChaseCamera(game, dt);
+  if (game.camera.shake > 0) game.camera.shake = Math.max(0, game.camera.shake - dt * 26);
   // Engine hum follows speed.
   const car = playerCar(game);
   setEngine(game.audio, car ? Math.abs(car.speed) / car.topSpeed : 0, !!car);
@@ -161,44 +210,10 @@ export function render(game) {
   const cam = game.camera;
   const shakeX = cam.shake > 0 ? (Math.random() - 0.5) * cam.shake : 0;
   const shakeY = cam.shake > 0 ? (Math.random() - 0.5) * cam.shake : 0;
-  ctx.setTransform(cam.zoom, 0, 0, cam.zoom, -cam.x * cam.zoom + shakeX, -cam.y * cam.zoom + shakeY);
-  // City first, then markers, then everything that stands on the street.
-  drawCity(ctx, game.city, cam, game.night);
-  drawMissionMarkers(ctx, game);
-  drawBulletsAndPickups(ctx, game);
-  // Entities sorted by y so nearer things draw over farther ones.
-  const entities = [];
-  for (const car of game.cars) entities.push({ y: car.y, draw: () => drawCar(ctx, car, game.night) });
-  for (const ped of game.peds) entities.push({ y: ped.y, draw: () => drawPedestrians(ctx, { ...game, peds: [ped] }) });
-  for (const cop of game.cops) entities.push({ y: cop.y, draw: () => drawCops(ctx, { ...game, cops: [cop] }) });
-  for (const e of game.enemies) entities.push({ y: e.y, draw: () => drawEnemies(ctx, { ...game, enemies: [e] }) });
-  if (game.player.onFoot) {
-    entities.push({ y: game.player.y, draw: () => drawPlayerOnFoot(ctx, game) });
-  }
-  entities.sort((a, b) => a.y - b.y);
-  for (const entity of entities) entity.draw();
-  // Particles.
-  for (const p of game.particles) {
-    ctx.globalAlpha = Math.max(0, p.life / p.max);
-    ctx.fillStyle = p.color;
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-    ctx.fill();
-  }
-  ctx.globalAlpha = 1;
-  // Night darkens the world; the HUD stays bright.
+  ctx.setTransform(1, 0, 0, 1, shakeX, shakeY);
+  // The 3D world, then the HUD on top.
+  renderWorld(ctx, game);
   ctx.setTransform(1, 0, 0, 1, 0, 0);
-  if (game.night) {
-    ctx.fillStyle = 'rgba(8,12,34,0.30)';
-    ctx.fillRect(0, 0, w, h);
-  } else {
-    // Warm sun wash from the top-left.
-    const sun = ctx.createRadialGradient(w * 0.2, 0, 50, w * 0.2, 0, w * 0.9);
-    sun.addColorStop(0, 'rgba(255,220,140,0.10)');
-    sun.addColorStop(1, 'rgba(255,220,140,0)');
-    ctx.fillStyle = sun;
-    ctx.fillRect(0, 0, w, h);
-  }
   if (game.screen === 'play') drawHUD(ctx, game);
   if (game.screen === 'pause') {
     drawHUD(ctx, game);
@@ -211,7 +226,7 @@ export function render(game) {
     drawOverlay(ctx, game, 'WASTED', ['Rico wakes up at Solmar General, patched up and poorer.'], 'Press Enter to get back on the street');
   }
   if (game.screen === 'win') {
-    drawOverlay(ctx, game, 'SOLMAR IS YOURS', ['All three jobs done. The Costa Crew runs the city,', 'and Rico Vale is the driver nobody catches.'], 'Press Enter to free-roam Solmar');
+    drawOverlay(ctx, game, 'SOLMAR IS YOURS', ['All eight jobs done. The Costa Crew runs the city,', 'and Rico Vale is the driver nobody catches.'], 'Press Enter to free-roam Solmar');
   }
 }
 
@@ -229,6 +244,7 @@ function startPlaying(game, fromSave) {
       game.player.x = data.playerX;
       game.player.y = data.playerY;
       game.player.health = data.health;
+      game.player.armor = data.armor || 0;
       game.addMessage('Save loaded. Welcome back to Solmar.');
     }
   } else {
@@ -302,7 +318,7 @@ function boot() {
   const seed = Number(params.get('seed') || SHOT_SEED) || SHOT_SEED;
   const game = newGame(seed);
   window.__game = game;
-  window.__solmar = { title: 'SOLMAR', version: 1 };
+  window.__solmar = { title: 'SOLMAR', version: 2 };
   // F5 quick-saves instead of reloading the page.
   window.addEventListener('keydown', (event) => {
     if (event.code === 'F5') {
@@ -320,6 +336,13 @@ function boot() {
     const step = 1 / 60;
     for (let i = 0; i < plan.seconds * 60; i += 1) {
       beginFrameInput(game.input);
+      // On foot the player aims at the mouse, and a headless mouse sits
+      // at (0,0) — pin the facing (and the camera yaw) BEFORE the
+      // update, or the camera chases the mouse-aim angle instead.
+      if (plan.faceAngle !== undefined) {
+        game.player.angle = plan.faceAngle;
+        game.camera.yaw = plan.faceAngle;
+      }
       if (plan.driveTarget) {
         const car = playerCar(game);
         const target = plan.driveTarget;
@@ -336,6 +359,7 @@ function boot() {
         if (diff < -0.15) game.input.keys.add('KeyA');
       }
       updateWorld(game, step);
+      if (plan.faceAngle !== undefined) game.player.angle = plan.faceAngle;
     }
     game.input.keys.clear();
     beginFrameInput(game.input);

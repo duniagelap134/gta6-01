@@ -1,18 +1,30 @@
 // The story: Rico Vale, getaway driver, caught between the Costa Crew
-// and the Vulture Kings over Solmar's turf. Three linked missions,
+// and the Vulture Kings over Solmar's turf. Eight linked missions,
 // each a chain of steps (go to a place, pick something up, steal a car,
 // survive the drive, deliver). The HUD and the minimap read the current
-// step's target; finishing all three ends the story.
+// step's target; finishing all eight ends the story. Each mission has
+// a speaker and a line the dialogue box shows when the job starts —
+// the fixer Vera Solano runs the Crew, and the crew (Dana, Milo, Nia)
+// talk Rico through the jobs.
 import { makeCar } from './vehicles.js';
 import { spawnEnemy, spawnPickup } from './combat.js';
 import { playMissionDone, playPickup } from './audio.js';
 import { addHeat } from './police.js';
 
+const VERA = { name: 'Vera Solano', role: 'FIXER · COSTA CREW' };
+const MARA = { name: 'Mara Costa', role: 'COSTA CREW · PASSENGER' };
+const DANA = { name: 'Dana Rook', role: 'DRIVER · COSTA CREW' };
+const MILO = { name: 'Milo Ferran', role: 'MECHANIC · COSTA CREW' };
+const NIA = { name: 'Nia Sol', role: 'LOOKOUT · COSTA CREW' };
+
 export const MISSIONS = [
   {
     id: 'm1',
     title: 'Mission 1 — The Pickup',
+    short: 'THE PICKUP',
     intro: 'Mara Costa needs a ride across town. The Kings are watching the Old Port — keep it quiet, keep it quick.',
+    speaker: MARA,
+    line: "Drive, Rico — and don't stop for anyone.",
     reward: 400,
     steps: [
       { type: 'goto', x: 700, y: 300, radius: 60, text: 'Pick up Mara at the Old Port cafe' },
@@ -22,7 +34,10 @@ export const MISSIONS = [
   {
     id: 'm2',
     title: 'Mission 2 — The Vela Job',
+    short: 'THE VELA JOB',
     intro: 'The Kings parked a cherry-red Vela GT by the marina. Steal it, bring it to the Costa garage — and expect company.',
+    speaker: VERA,
+    line: 'The Kings parked a cherry Vela by the casino. Bring it home.',
     reward: 700,
     steps: [
       { type: 'goto', x: 2150, y: 300, radius: 70, text: 'Reach the marked Vela GT at the Marina Casino' },
@@ -33,13 +48,86 @@ export const MISSIONS = [
   {
     id: 'm3',
     title: 'Mission 3 — The Bridge Job',
-    intro: 'One last run: the package, three checkpoints, the whole PD on your tail. Finish this and Solmar is yours.',
+    short: 'THE BRIDGE JOB',
+    intro: 'One last run for the old crew: the package, three checkpoints, the whole PD on your tail. Finish this and Solmar is yours.',
+    speaker: VERA,
+    line: 'Three checkpoints, the whole PD on your tail. Make it count.',
     reward: 1500,
     steps: [
       { type: 'goto', x: 1500, y: 700, radius: 60, text: 'Grab the package at the Downtown tower' },
       { type: 'escape', x: 2300, y: 300, radius: 80, text: 'Checkpoint 1 — Marina Gate (wanted level 3!)' },
       { type: 'escape', x: 2300, y: 1500, radius: 80, text: 'Checkpoint 2 — Palms Corner' },
       { type: 'escape', x: 300, y: 1500, radius: 80, text: 'Final drop — Old Port docks. Lose them or outrun them.' },
+    ],
+  },
+  {
+    id: 'm4',
+    title: 'Mission 4 — Dockside Debt',
+    short: 'DOCKSIDE DEBT',
+    intro: 'A ledger at the Old Port docks proves the Kings skimmed the Crew. Collect it, run it to the casino — gunmen are already on the pier.',
+    speaker: DANA,
+    line: "Ledger's worth more than my car. Don't scratch either.",
+    reward: 800,
+    steps: [
+      { type: 'goto', x: 300, y: 1500, radius: 70, text: 'Collect the ledger at the Old Port docks' },
+      { type: 'goto', x: 2150, y: 300, radius: 80, text: 'Run the ledger to the Marina Casino — Kings gunmen on the way' },
+    ],
+  },
+  {
+    id: 'm5',
+    title: 'Mission 5 — Sunset Tow',
+    short: 'SUNSET TOW',
+    intro: 'A reinforced Harbor Hauler sits by Solmar Tower, and Milo needs its bed for the chop shop. Tow it home before the PD notices.',
+    speaker: MILO,
+    line: "That hauler's got a reinforced bed. I need it, you need the cash.",
+    reward: 900,
+    steps: [
+      { type: 'goto', x: 1100, y: 700, radius: 70, text: 'Reach the marked Harbor Hauler at Solmar Tower' },
+      { type: 'steal', x: 1100, y: 700, radius: 70, text: 'Steal the Harbor Hauler (press E beside it)' },
+      { type: 'deliver', x: 1900, y: 1500, radius: 80, text: 'Tow it to the Palms chop shop — wanted level 2' },
+    ],
+  },
+  {
+    id: 'm6',
+    title: 'Mission 6 — Static on the Line',
+    short: 'STATIC ON THE LINE',
+    intro: 'The Kings tapped the Crew radio. Nia found the relay on Tower Row — climb up, kill the tap, and be gone before the triangulation lands.',
+    speaker: NIA,
+    line: "Relay's hot. Cops triangulate in minutes — move.",
+    reward: 1100,
+    steps: [
+      { type: 'goto', x: 1500, y: 300, radius: 60, text: 'Reach the relay on Tower Row' },
+      { type: 'escape', x: 700, y: 300, radius: 80, text: 'Checkpoint 1 — Old Port (triangulation incoming!)' },
+      { type: 'escape', x: 700, y: 1500, radius: 80, text: 'Checkpoint 2 — Costa garage. Lose the tail.' },
+    ],
+  },
+  {
+    id: 'm7',
+    title: 'Mission 7 — Harbor Lights',
+    short: 'HARBOR LIGHTS',
+    intro: 'Midnight at the marina: a Kings courier van runs the coast road with the night take. Take the van, take the route, take the money.',
+    speaker: VERA,
+    line: 'The courier drives at midnight. Take the van, take the route, take the money.',
+    reward: 1200,
+    steps: [
+      { type: 'goto', x: 2300, y: 1100, radius: 70, text: 'Find the Kings courier van at the marina' },
+      { type: 'steal', x: 2300, y: 1100, radius: 70, text: 'Steal the courier van (press E beside it)' },
+      { type: 'deliver', x: 300, y: 1100, radius: 80, text: 'Run the van to the Old Port docks — rivals will shoot' },
+    ],
+  },
+  {
+    id: 'm8',
+    title: 'Mission 8 — King Tide',
+    short: 'KING TIDE',
+    intro: 'Last run, Rico. Everything the Crew owns rides on this package: four stops, the whole PD on your tail, and the tide coming in.',
+    speaker: VERA,
+    line: 'Last run, Rico. Everything the Crew owns rides on this package.',
+    reward: 2000,
+    steps: [
+      { type: 'goto', x: 1100, y: 1100, radius: 60, text: 'Grab the package at the Solmar Tower plaza' },
+      { type: 'escape', x: 2300, y: 300, radius: 80, text: 'Checkpoint 1 — Marina Gate (wanted level 3!)' },
+      { type: 'escape', x: 2300, y: 1500, radius: 80, text: 'Checkpoint 2 — Palms Corner' },
+      { type: 'escape', x: 300, y: 300, radius: 80, text: 'Final drop — Old Port docks. King Tide is yours.' },
     ],
   },
 ];
@@ -57,6 +145,7 @@ export function startMission(game, index) {
     startedAt: game.time,
   };
   game.addMessage(`${def.title}: ${def.intro}`);
+  game.dialogue = { name: def.speaker.name, role: def.speaker.role, text: def.line, until: game.time + 8 };
   setupMissionStep(game);
   return true;
 }
@@ -66,30 +155,73 @@ function setupMissionStep(game) {
   if (!mission) return;
   const step = mission.def.steps[mission.step];
   if (!step) return;
-  if (mission.def.id === 'm1' && mission.step === 1) {
+  const id = mission.def.id;
+  if (id === 'm1' && mission.step === 1) {
     // The tail: one police car joins the chase.
     addHeat(game, 1.0);
     game.addMessage('A patrol car spotted you — lose it on the way!');
   }
-  if (mission.def.id === 'm2' && mission.step === 1) {
+  if (id === 'm2' && mission.step === 1) {
     const car = makeCar(game, 'sport', 2230, 334, 0, 'parked');
     car.color = '#d21f3c';
     car.marker = true;
     game.cars.push(car);
     mission.targetCar = car;
   }
-  if (mission.def.id === 'm2' && mission.step === 2 && !mission.rivalsSpawned) {
+  if (id === 'm2' && mission.step === 2 && !mission.rivalsSpawned) {
     mission.rivalsSpawned = true;
     spawnEnemy(game, 1900, 500, 'rival');
     spawnEnemy(game, 2100, 600, 'rival');
     spawnEnemy(game, 1500, 1100, 'brute');
     game.addMessage('Kings gunmen on the street — fight or floor it!');
   }
-  if (mission.def.id === 'm3' && mission.step === 1) {
+  if (id === 'm3' && mission.step === 1) {
     addHeat(game, 2.4);
     game.addMessage('Wanted level 3! Every unit in Solmar is after you.');
   }
-  if (mission.def.id === 'm3') {
+  if (id === 'm3') {
+    spawnPickup(game, step.x, step.y, 'health');
+  }
+  if (id === 'm4' && mission.step === 1 && !mission.rivalsSpawned) {
+    mission.rivalsSpawned = true;
+    spawnEnemy(game, 1900, 500, 'rival');
+    spawnEnemy(game, 2100, 700, 'rival');
+    game.addMessage('Kings gunmen on the pier — keep the ledger moving!');
+  }
+  if (id === 'm5' && mission.step === 1) {
+    const car = makeCar(game, 'truck', 1180, 734, 0, 'parked');
+    car.color = '#7a5a3a';
+    car.marker = true;
+    game.cars.push(car);
+    mission.targetCar = car;
+  }
+  if (id === 'm5' && mission.step === 2 && !mission.rivalsSpawned) {
+    mission.rivalsSpawned = true;
+    addHeat(game, 1.4);
+    game.addMessage('The PD spotted the tow — wanted level 2!');
+  }
+  if (id === 'm6' && mission.step === 1) {
+    addHeat(game, 1.2);
+    game.addMessage('Triangulation! The PD is closing on your position.');
+  }
+  if (id === 'm7' && mission.step === 1) {
+    const car = makeCar(game, 'van', 2380, 1134, 0, 'parked');
+    car.color = '#8a94a6';
+    car.marker = true;
+    game.cars.push(car);
+    mission.targetCar = car;
+  }
+  if (id === 'm7' && mission.step === 2 && !mission.rivalsSpawned) {
+    mission.rivalsSpawned = true;
+    spawnEnemy(game, 2100, 900, 'rival');
+    spawnEnemy(game, 2300, 1300, 'brute');
+    game.addMessage('Kings gunmen guarding the route — punch through!');
+  }
+  if (id === 'm8' && mission.step === 1) {
+    addHeat(game, 2.4);
+    game.addMessage('Wanted level 3! Every unit in Solmar is after you.');
+  }
+  if (id === 'm8') {
     spawnPickup(game, step.x, step.y, 'health');
   }
 }
@@ -150,6 +282,7 @@ function completeMission(game) {
   game.stats.missionsDone += 1;
   game.addMessage(`${mission.def.title} complete! +$${reward}`);
   playMissionDone(game.audio);
+  game.dialogue = { name: mission.def.speaker.name, role: mission.def.speaker.role, text: `Job done, Rico. +$${reward} — next one pays more.`, until: game.time + 6 };
   if (mission.targetCar) mission.targetCar.marker = false;
   game.mission = null;
   game.missionIndex += 1;
@@ -169,6 +302,11 @@ export function missionStartMarker(game) {
     { x: 700, y: 300 },
     { x: 2150, y: 300 },
     { x: 1500, y: 700 },
+    { x: 300, y: 1500 },
+    { x: 1100, y: 700 },
+    { x: 1500, y: 300 },
+    { x: 2300, y: 1100 },
+    { x: 1100, y: 1100 },
   ];
   if (game.mission || game.missionIndex >= MISSIONS.length) return null;
   return starts[game.missionIndex];
@@ -180,40 +318,5 @@ export function checkMissionStart(game) {
   const player = game.player;
   if (Math.hypot(player.x - marker.x, player.y - marker.y) < 70) {
     startMission(game, game.missionIndex);
-  }
-}
-
-export function drawMissionMarkers(ctx, game) {
-  const step = currentStep(game);
-  const pulse = 1 + Math.sin(game.time * 5) * 0.15;
-  if (step) {
-    // Pulsing ring + beam at the objective.
-    ctx.strokeStyle = '#ffd21f';
-    ctx.lineWidth = 4;
-    ctx.beginPath();
-    ctx.arc(step.x, step.y, 42 * pulse, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.fillStyle = 'rgba(255,210,31,0.18)';
-    ctx.beginPath();
-    ctx.arc(step.x, step.y, 42 * pulse, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = '#ffd21f';
-    ctx.font = 'bold 22px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText('★', step.x, step.y + 8);
-    ctx.textAlign = 'left';
-  }
-  const start = missionStartMarker(game);
-  if (start) {
-    ctx.strokeStyle = '#ffd21f';
-    ctx.lineWidth = 4;
-    ctx.beginPath();
-    ctx.arc(start.x, start.y, 40 * pulse, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.fillStyle = '#ffd21f';
-    ctx.font = 'bold 26px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText('M', start.x, start.y + 9);
-    ctx.textAlign = 'left';
   }
 }

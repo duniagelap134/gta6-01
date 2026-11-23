@@ -1,5 +1,6 @@
 // Combat: Rico's pistol and fists, rival gang members who shoot back,
 // bullets, muzzle flashes and pickups (health, ammo, armour).
+// Drawing moved to render3d.js.
 import { BULLET_SPEED, PISTOL_DAMAGE, FIST_DAMAGE, HEAT_SHOOT, HEAT_KILL } from './config.js';
 import { wasPressed } from './input.js';
 import { resolveCityCollision } from './city.js';
@@ -203,63 +204,5 @@ export function updateCombat(game, dt) {
       game.addMessage(p.kind === 'health' ? 'Picked up a medkit. +40 health' : p.kind === 'ammo' ? 'Picked up ammo. +24' : 'Picked up armour.');
       game.pickups.splice(i, 1);
     }
-  }
-}
-
-export function drawEnemies(ctx, game) {
-  for (const e of game.enemies) {
-    ctx.fillStyle = 'rgba(0,0,0,0.25)';
-    ctx.beginPath();
-    ctx.ellipse(e.x + 2, e.y + 4, 12, 6, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = e.color;
-    ctx.beginPath();
-    ctx.arc(e.x, e.y, 13, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = '#e8e4d2';
-    ctx.beginPath();
-    ctx.arc(e.x, e.y, 6, 0, Math.PI * 2);
-    ctx.fill();
-    // Gun barrel.
-    ctx.strokeStyle = '#1c1c1c';
-    ctx.lineWidth = 4;
-    ctx.beginPath();
-    ctx.moveTo(e.x + Math.cos(e.angle) * 8, e.y + Math.sin(e.angle) * 8);
-    ctx.lineTo(e.x + Math.cos(e.angle) * 22, e.y + Math.sin(e.angle) * 22);
-    ctx.stroke();
-    // Health bar.
-    const max = e.kind === 'brute' ? 120 : 70;
-    ctx.fillStyle = 'rgba(0,0,0,0.5)';
-    ctx.fillRect(e.x - 16, e.y - 26, 32, 5);
-    ctx.fillStyle = '#ff5a4e';
-    ctx.fillRect(e.x - 16, e.y - 26, 32 * Math.max(0, e.health / max), 5);
-  }
-}
-
-export function drawBulletsAndPickups(ctx, game) {
-  for (const b of game.bullets) {
-    ctx.strokeStyle = '#ffd21f';
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.moveTo(b.x - Math.cos(b.angle) * 12, b.y - Math.sin(b.angle) * 12);
-    ctx.lineTo(b.x, b.y);
-    ctx.stroke();
-  }
-  for (const p of game.pickups) {
-    const bobY = Math.sin(p.bob) * 3;
-    ctx.fillStyle = p.kind === 'health' ? '#e8e4d2' : p.kind === 'ammo' ? '#2f2f2f' : '#3d6fc9';
-    ctx.beginPath();
-    ctx.arc(p.x, p.y + bobY, 11, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = p.kind === 'health' ? '#d21f3c' : '#ffd21f';
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.arc(p.x, p.y + bobY, 11, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.fillStyle = p.kind === 'health' ? '#d21f3c' : '#ffd21f';
-    ctx.font = 'bold 13px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText(p.kind === 'health' ? '+' : p.kind === 'ammo' ? 'A' : 'S', p.x, p.y + bobY + 4);
-    ctx.textAlign = 'left';
   }
 }

@@ -1,7 +1,7 @@
 // Traffic cars and pedestrians: the city feels alive. Traffic cars
 // cruise the road grid between intersections, slowing for the car
 // ahead; pedestrians stroll the sidewalks and flee from gunfire, fast
-// cars and police chases.
+// cars and police chases. Drawing moved to render3d.js.
 import { WORLD_W, WORLD_H, V_ROADS, H_ROADS, ROAD_W } from './config.js';
 import { makeCar, playerCar } from './vehicles.js';
 import { onRoad, resolveCityCollision } from './city.js';
@@ -175,28 +175,5 @@ export function checkPedCarHits(game) {
       fresh.y = pt.y;
       game.peds.push(fresh);
     }
-  }
-}
-
-export function drawPedestrians(ctx, game) {
-  for (const ped of game.peds) {
-    ctx.fillStyle = 'rgba(0,0,0,0.22)';
-    ctx.beginPath();
-    ctx.ellipse(ped.x + 2, ped.y + 4, 10, 5, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = game.night ? '#8a8a8a' : ped.color;
-    ctx.beginPath();
-    ctx.arc(ped.x, ped.y, 10, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = '#22242a';
-    ctx.beginPath();
-    ctx.arc(ped.x, ped.y, 5, 0, Math.PI * 2);
-    ctx.fill();
-    // Little walking bob: a foot dot ahead.
-    const bob = Math.sin(game.time * 8 + ped.x) * 3;
-    ctx.fillStyle = 'rgba(0,0,0,0.4)';
-    ctx.beginPath();
-    ctx.arc(ped.x + Math.cos(ped.angle) * (10 + bob), ped.y + Math.sin(ped.angle) * (10 + bob), 2.5, 0, Math.PI * 2);
-    ctx.fill();
   }
 }

@@ -21,8 +21,12 @@ export function createInput(canvas) {
   window.addEventListener('keyup', (event) => input.keys.delete(event.code));
   window.addEventListener('blur', () => {
     input.keys.clear();
+    input.pressed.clear();
     input.mouse.down = false;
   });
+  // Right-click is not a game action: keep the browser menu from
+  // popping over the canvas mid-chase.
+  canvas.addEventListener('contextmenu', (event) => event.preventDefault());
   canvas.addEventListener('mousemove', (event) => {
     const rect = canvas.getBoundingClientRect();
     input.mouse.x = event.clientX - rect.left;

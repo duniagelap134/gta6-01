@@ -44,6 +44,16 @@ createServer((request, response) => {
     response.writeHead(400).end('bad request');
     return;
   }
+  if (pathname === '/health') {
+    response.writeHead(200, { 'content-type': 'text/plain; charset=utf-8' });
+    response.end('ok');
+    return;
+  }
+  if (request.method === 'HEAD') {
+    response.writeHead(200, { 'content-type': 'text/plain; charset=utf-8' });
+    response.end();
+    return;
+  }
   if (pathname.endsWith('/')) pathname += 'index.html';
   const file = resolve(join(root, normalize(pathname)));
   if (file !== root && !file.startsWith(root + sep)) {
@@ -67,4 +77,5 @@ createServer((request, response) => {
   createReadStream(file).pipe(response);
 }).listen(port, '127.0.0.1', () => {
   console.log(`SOLMAR game/ is on http://localhost:${port}`);
+  console.log(`Shots: ${['chase', 'foot', 'drive', 'night'].map((s) => `http://localhost:${port}/?shot=${s}&seed=7`).join('  ')}`);
 });

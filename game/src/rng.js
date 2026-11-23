@@ -1,5 +1,7 @@
-// Seeded random numbers (mulberry32) so the city and the screenshot
-// scenes are identical on every run with the same seed.
+// Seeded random numbers (mulberry32) so the city, traffic and the
+// screenshot scenes are identical on every run with the same seed.
+// Nothing in the game draws from Math.random for world state — only
+// cosmetic dust and camera shake do, and neither changes the outcome.
 export function mulberry32(seed) {
   let a = seed >>> 0;
   return function random() {
@@ -30,4 +32,12 @@ export function range(random, min, max) {
 
 export function rangeInt(random, min, max) {
   return min + Math.floor(random() * (max - min + 1));
+}
+
+// A stable 0..1 hash for one integer pair — used for lit windows and
+// other per-object details that must not change between frames.
+export function hash2(x, y) {
+  let h = (x * 374761393 + y * 668265263) | 0;
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
 }
