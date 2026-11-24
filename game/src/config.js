@@ -1,112 +1,88 @@
-// SOLMAR v2 — shared constants: world size, roads, palette, tuning,
-// story data (districts, radio, crew, ranks) and chase-camera tuning.
-// All numbers are world units (pixels at zoom 1) unless noted.
-export const WORLD_W = 2600;
-export const WORLD_H = 1800;
-export const ROAD_W = 96;
-export const V_ROADS = [300, 700, 1100, 1500, 1900, 2300];
-export const H_ROADS = [300, 700, 1100, 1500];
-export const SEA_X = 110; // west of this is water
-export const BEACH_X = 190; // sand strip between sea and city
-export const MARINA_X = 2480; // east of this is the marina water
-
-export const PALETTE = {
-  grass: '#7fae5a',
-  grassDark: '#6f9c4c',
-  sand: '#e8d29a',
-  sea: '#2f7fb8',
-  seaDeep: '#256a9e',
-  asphalt: '#3d3f45',
-  asphaltLight: '#4a4c54',
-  sidewalk: '#b9b3a4',
-  line: '#e8e4d2',
-  roofA: '#c96f4a',
-  roofB: '#4a7fb5',
-  roofC: '#d9a441',
-  roofD: '#7d6a9e',
-  roofE: '#5a8a6a',
-  wallA: '#8a4a34',
-  wallB: '#33506e',
-  wallC: '#9c7a2e',
-  wallD: '#574a70',
-  wallE: '#3f6248',
-  sun: '#ffd98a',
-  night: '#0d1526',
+// SOLMAR — every tunable number for the game lives here, so the rest of
+// the code reads like the design instead of a pile of magic numbers.
+// The city is a 2600 x 1800 grid: six north-south roads and four
+// east-west roads, which is also where every mission objective sits.
+export const CFG = {
+  world: { w: 2600, h: 1800 },
+  roadsX: [300, 700, 1100, 1500, 1900, 2300],
+  roadsY: [300, 700, 1100, 1500],
+  roadWidth: 90,
+  seed: 20261124,
+  player: {
+    walkSpeed: 150,
+    runSpeed: 150,
+    health: 100,
+    armor: 50,
+    ammo: 60,
+    money: 250,
+    radius: 14,
+  },
+  car: {
+    maxSpeed: 320,
+    accel: 170,
+    brake: 260,
+    reverseMax: 120,
+    turnRate: 2.4,
+    friction: 55,
+    length: 64,
+    width: 30,
+  },
+  police: {
+    maxCops: 4,
+    spawnInterval: 1.2,
+    spawnDistance: 650,
+    chaseSpeed: 248,
+    ramDamage: 3,
+    ramCooldown: 0.6,
+  },
+  wanted: {
+    stealHeat: 0.4,
+    missionHeat: 2.6,
+    decayPerSec: 0.05,
+  },
+  crew: {
+    platesCooldown: 10,
+    platesDrop: 1.2,
+    fixCooldown: 8,
+    eyesCooldown: 5,
+  },
+  combat: {
+    fireInterval: 0.15,
+    bulletSpeed: 620,
+    bulletLife: 0.7,
+    copDamage: 12,
+  },
+  missions: {
+    startRadius: 100,
+    objectiveRadius: 100,
+  },
+  saveKey: 'solmar-save-v1',
+  districts: [
+    { name: 'VELA POINT', x0: 0, y0: 0, x1: 1000, y1: 600 },
+    { name: 'CORAL HEIGHTS', x0: 1000, y0: 0, x1: 2600, y1: 600 },
+    { name: 'PALM ROW', x0: 0, y0: 600, x1: 1300, y1: 1200 },
+    { name: 'OLD CANNERY', x0: 1300, y0: 600, x1: 2600, y1: 1200 },
+    { name: 'MARINA GATE', x0: 0, y0: 1200, x1: 1300, y1: 1800 },
+    { name: 'SUNSET STRIP', x0: 1300, y0: 1200, x1: 2600, y1: 1800 },
+  ],
+  radio: [
+    'SOLMAR FM 98.4 — Island Pop',
+    'RADIO PALMA 101.2 — Sunset Cumbia',
+    'SOLMAR FM 98.4 — Golden Hour Mix',
+  ],
+  // Golden-hour palette used by the renderer and the HUD.
+  palette: {
+    skyTop: '#2e4a7a',
+    skyMid: '#e8705a',
+    skyLow: '#f7b267',
+    duskTop: '#3a2a5e',
+    duskMid: '#d95d6a',
+    duskLow: '#f9a55c',
+    nightTop: '#060a1c',
+    nightMid: '#101c3a',
+    nightLow: '#1d2f52',
+    road: '#3d3a44',
+    roadEdge: '#f7c948',
+    ground: '#c9a06a',
+  },
 };
-
-// District names, shown in the HUD with a clock. The streets keep the
-// city's own geography: Old Port on the west, Marina on the east.
-export const DISTRICTS = [
-  { name: 'Old Port', x0: 190, y0: 0, x1: 700, y1: 1800, street: 'Harbor Avenue' },
-  { name: 'Downtown', x0: 700, y0: 0, x1: 1500, y1: 1800, street: 'Tower Row' },
-  { name: 'Palms', x0: 1500, y0: 700, x1: 2480, y1: 1800, street: 'Palm Crescent' },
-  { name: 'Marina', x0: 1500, y0: 0, x1: 2480, y1: 700, street: 'Casino Strip' },
-];
-
-// Radio stations for the ticker. The music loop is a bassline; the
-// ticker just names the station that would be playing.
-export const RADIO = [
-  { name: 'SOLMAR FM 98.4', show: 'Coastline' },
-  { name: 'WAVE 101.7', show: 'Night Drive' },
-  { name: 'PALM 88.2', show: 'Island Gold' },
-];
-
-// The crew: three real abilities on Z / X / C, with cooldowns.
-export const CREW = {
-  plates: { key: 'Z', name: 'SWAP PLATES', person: 'Dana Rook', role: 'Driver', cooldown: 30, blurb: 'Fresh plates — heat drops a star' },
-  fix: { key: 'X', name: 'QUICK FIX', person: 'Milo Ferran', role: 'Mechanic', cooldown: 45, blurb: 'Patches the ride back to 100%' },
-  eyes: { key: 'C', name: 'EYES OUT', person: 'Nia Sol', role: 'Lookout', cooldown: 12, blurb: 'Marks the nearest unit for 10 s' },
-};
-
-// Respect ranks, driven by real stats (missions, kills, cars stolen).
-export const RANKS = [
-  { at: 0, name: 'ROOKIE' },
-  { at: 500, name: 'HUSTLER' },
-  { at: 1500, name: 'DRIVER' },
-  { at: 3000, name: 'FIXER' },
-  { at: 5200, name: 'KINGPIN' },
-  { at: 9000, name: 'LEGEND' },
-];
-
-export function respectPoints(game) {
-  return game.missionsDone * 1300 + game.stats.kills * 75 + game.stats.carsStolen * 150 + game.stats.pedsHit * 10;
-}
-
-export function rankFor(game) {
-  const rp = respectPoints(game);
-  let tier = 0;
-  for (let i = 0; i < RANKS.length; i += 1) {
-    if (rp >= RANKS[i].at) tier = i;
-  }
-  const start = RANKS[tier].at;
-  const end = tier + 1 < RANKS.length ? RANKS[tier + 1].at : RANKS[tier].at + 5000;
-  return { name: RANKS[tier].name, tier: tier + 1, rp: rp - start, rpMax: end - start };
-}
-
-// Chase camera: distance behind the car, height above the street, and
-// how far down the camera tilts. On foot the camera closes in.
-export const CAM_DRIVE_DIST = 95;
-export const CAM_DRIVE_HEIGHT = 52;
-export const CAM_FOOT_DIST = 85;
-export const CAM_FOOT_HEIGHT = 44;
-export const CAM_PITCH = 0.26; // radians the camera looks down
-export const CAM_FOV_DEG = 75;
-
-export const PLAYER_WALK_SPEED = 230;
-export const PLAYER_SPRINT_SPEED = 330;
-export const PLAYER_HEALTH_MAX = 100;
-export const CAR_ENTER_RADIUS = 70;
-export const BULLET_SPEED = 900;
-export const PISTOL_DAMAGE = 34;
-export const FIST_DAMAGE = 20;
-
-// Wanted heat thresholds: heat >= each value earns that star count.
-export const WANTED_THRESHOLDS = [0.5, 1.2, 2.1, 3.2, 4.5];
-export const HEAT_DECAY_PER_SECOND = 0.03;
-export const HEAT_STEAL_CAR = 0.9;
-export const HEAT_SHOOT = 0.45;
-export const HEAT_HIT_PED = 0.7;
-export const HEAT_KILL = 0.25;
-
-export const SAVE_KEY = 'solmar-save-v1';
-export const SHOT_SEED = 7;

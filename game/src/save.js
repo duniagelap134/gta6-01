@@ -1,57 +1,61 @@
-// Save / load through localStorage: money, missions finished, the
-// player's spot, health, armour and the current mission. Wanted level
-// is never saved — a fresh session starts clean, like a new morning
-// in Solmar. Version 2 saves armour too; version 1 saves still load.
-import { SAVE_KEY } from './config.js';
-
-const SAVE_VERSION = 2;
+// SOLMAR — saving. One slot in localStorage: money, progress, health,
+// armour, ammo and where Rico stands. Loading puts him back exactly
+// there, in play, with the same story state.
+import { CFG } from './config.js';
 
 export function hasSave() {
   try {
-    return window.localStorage.getItem(SAVE_KEY) !== null;
-  } catch {
+    return window.localStorage.getItem(CFG.saveKey) !== null;
+  } catch (err) {
     return false;
   }
 }
 
 export function saveGame(game) {
-  const data = {
-    version: SAVE_VERSION,
-    money: game.player.money,
-    missionsDone: game.missionsDone,
-    missionIndex: game.missionIndex,
-    playerX: Math.round(game.player.x),
-    playerY: Math.round(game.player.y),
-    health: Math.round(game.player.health),
-    armor: Math.round(game.player.armor),
-    carsStolen: game.stats.carsStolen,
-    savedAt: Date.now(),
-  };
   try {
-    window.localStorage.setItem(SAVE_KEY, JSON.stringify(data));
+    const p = game.player;
+    const data = {
+      money: p.money,
+      missionsDone: game.missionsDone,
+      health: p.health,
+      armor: p.armor,
+      ammo: p.ammo,
+      x: p.x,
+      y: p.y,
+      onFoot: p.onFoot,
+      heat: game.heat,
+    };
+    window.localStorage.setItem(CFG.saveKey, JSON.stringify(data));
     return true;
-  } catch {
+  } catch (err) {
     return false;
   }
 }
 
 export function loadSave() {
   try {
-    const raw = window.localStorage.getItem(SAVE_KEY);
+    const raw = window.localStorage.getItem(CFG.saveKey);
     if (!raw) return null;
     const data = JSON.parse(raw);
-    if (!data || (data.version !== 1 && data.version !== SAVE_VERSION)) return null;
-    if (data.version === 1) data.armor = 0; // v1 saves had no armour
+    if (typeof data.money !== 'number') return null;
     return data;
-  } catch {
+  } catch (err) {
     return null;
   }
 }
 
-export function clearSave() {
-  try {
-    window.localStorage.removeItem(SAVE_KEY);
-  } catch {
-    // storage unavailable; nothing to clear
-  }
+export function applySave(game, data) {
+  const p = game.player;
+  p.money = data.money;
+  p.health = data.health;
+  p.armor = data.armor;
+  p.ammo = data.ammo;
+  p.x = data.x;
+  p.y = data.y;
+  p.onFoot = true;
+  p.carId = null;
+  p.dead = false;
+  game.missionsDone = data.missionsDone;
+  game.heat = data.heat || 0;
+  game.mission = null;
 }
